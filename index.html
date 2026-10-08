@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Multiplayer Tic-Tac-Toe</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        h1 {
+            margin-bottom: 15px;
+            font-size: 1.8rem;
+        }
+
+        .share-box {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            word-break: break-all;
+            font-size: 0.85rem;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            background: #ffd700;
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+
+        .status {
+            font-size: 1.1rem;
+            margin: 15px 0;
+            height: 30px;
+            font-weight: 600;
+            color: #00d2d3;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .cell {
+            aspect-ratio: 1;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .cell:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .cell.x { color: #ff4b5c; }
+        .cell.o { color: #00d2d3; }
+
+        .reset-btn {
+            width: 100%;
+            padding: 12px;
+            background: #ff4b5c;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+    </style>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <h1>Online Tic-Tac-Toe</h1>
+    
+    <div class="share-box" id="share-area">
+        <p>Aapka Game Link Ban Raha Hai...</p>
+    </div>
+
+    <div class="status" id="status">Connecting...</div>
+
+    <div class="board" id="board">
+        <div class="cell" onclick="makeMove(0)"></div>
+        <div class="cell" onclick="makeMove(1)"></div>
+        <div class="cell" onclick="makeMove(2)"></div>
+        <div class="cell" onclick="makeMove(3)"></div>
+        <div class="cell" onclick="makeMove(4)"></div>
+        <div class="cell" onclick="makeMove(5)"></div>
+        <div class="cell" onclick="makeMove(6)"></div>
+        <div class="cell" onclick="makeMove(7)"></div>
+        <div class="cell" onclick="makeMove(8)"></div>
+    </div>
+
+    <button class="reset-btn" onclick="resetGame()">Restart Game</button>
+</div>
+
+<script>
+    // ⚠️ YAHAN APNA FIREBASE CONFIGURATION PASTE KAREIN
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT.firebaseapp.com",
+        databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+        projectId: "YOUR_PROJECT",
+        storageBucket: "YOUR_PROJECT.appspot.com",
+        messagingSenderId: "YOUR_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // URL se Game ID lena ya Nayi Game ID banana
+    const urlParams = new URLSearchParams(window.location.search);
+    let gameId = urlParams.get('game');
+    let mySymbol = "";
+    let gameRef;
+
+    const cells = document.querySelectorAll('.cell');
+    const statusText = document.getElementById('status');
+    const shareArea = document.getElementById('share-area');
+
+    if (!gameId) {
+        // Player 1 (Host)
+        gameId = Math.random().toString(36).substring(2, 8);
+        mySymbol = "X";
+        window.history.pushState({}, '', '?game=' + gameId);
+        gameRef = db.ref('games/' + gameId);
+        
+        gameRef.set({
+            board: ["", "", "", "", "", "", "", "", ""],
+            turn: "X",
+            winner: ""
+        });
+    } else {
+        // Player 2 (Joiner)
+        mySymbol = "O";
+        gameRef = db.ref('games/' + gameId);
+    }
+
+    // Shareable Link Display
+    const fullLink = window.location.href;
+    shareArea.innerHTML = `
+        <p>Aap <b>Player (${mySymbol})</b> hain.</p>
+        <p style="margin-top:5px; font-size:0.75rem;">Dost ko link bhejein:</p>
+        <button class="btn" onclick="navigator.clipboard.writeText('${fullLink}'); alert('Link copied!');">📋 Copy Game Link</button>
+    `;
+
+    // Database Sync Listeners
+    gameRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (!data) return;
+
+        // Board UI Update
+        data.board.forEach((val, idx) => {
+            cells[idx].innerText = val;
+            cells[idx].className = 'cell ' + val.toLowerCase();
+        });
+
+        // Status Message Update
+        if (data.winner) {
+            if (data.winner === "Draw") {
+                statusText.innerText = "Match Draw Ho Gaya! 🤝";
+            } else {
+                statusText.innerText = `Khiladi ${data.winner} Jeet Gaya! 🎉`;
+            }
+        } else {
+            if (data.turn === mySymbol) {
+                statusText.innerText = "Aapki Baari Hai! (" + mySymbol + ")";
+            } else {
+                statusText.innerText = "Dost ki baari ka wait karein... (" + data.turn + ")";
+            }
+        }
+    });
+
+    function makeMove(index) {
+        gameRef.once('value').then((snapshot) => {
+            const data = snapshot.val();
+            if (!data || data.winner !== "") return;
+            if (data.turn !== mySymbol) return; // Baari nahi hai
+            if (data.board[index] !== "") return; // Jagah bhari hui hai
+
+            let newBoard = [...data.board];
+            newBoard[index] = mySymbol;
+
+            let winner = checkWinner(newBoard);
+            let nextTurn = mySymbol === "X" ? "O" : "X";
+
+            gameRef.update({
+                board: newBoard,
+                turn: nextTurn,
+                winner: winner
+            });
+        });
+    }
+
+    function checkWinner(board) {
+        const wins = [
+            [0,1,2],[3,4,5],[6,7,8],
+            [0,3,6],[1,4,7],[2,5,8],
+            [0,4,8],[2,4,6]
+        ];
+
+        for (let condition of wins) {
+            const [a, b, c] = condition;
+            if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+                return board[a];
+            }
+        }
+
+        if (board.every(cell => cell !== "")) return "Draw";
+        return "";
+    }
+
+    function resetGame() {
+        gameRef.update({
+            board: ["", "", "", "", "", "", "", "", ""],
+            turn: "X",
+            winner: ""
+        });
+    }
+</script>
+
+</body>
+</html>
