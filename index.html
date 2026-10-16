@@ -1,264 +1,393 @@
-<!DOCTYPE html>
-<html lang="hi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Online Multiplayer Tic-Tac-Toe</title>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
+
+void main() {
+  runApp(const CasinoApp());
+}
+
+class CasinoApp extends StatelessWidget {
+  const CasinoApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark(),
+      home: const DashboardScreen(),
+    );
+  }
+}
+
+class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  int _selectedIndex = 1;
+  final String upiId = "8057418879@ibl"; // Aapki UPI ID
+
+  // Direct PhonePe/UPI Intent open karne ka function
+  Future<void> _payViaUPI(double amount) async {
+    final Uri upiUri = Uri.parse(
+      "upi://pay?pa=$upiId&pn=Papa&am=$amount&cu=INR&tn=Deposit5499",
+    );
+
+    try {
+      bool launched = await launchUrl(
+        upiUri,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!launched) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("PhonePe ya koi UPI App nahi khul paya!")),
+          );
         }
-
-        body {
-            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: #fff;
-        }
-
-        .container {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            padding: 25px;
-            border-radius: 20px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-            text-align: center;
-            max-width: 400px;
-            width: 90%;
-        }
-
-        h1 {
-            margin-bottom: 15px;
-            font-size: 1.8rem;
-        }
-
-        .share-box {
-            background: rgba(0, 0, 0, 0.2);
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            word-break: break-all;
-            font-size: 0.85rem;
-        }
-
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 8px;
-            background: #ffd700;
-            color: #000;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 5px;
-        }
-
-        .status {
-            font-size: 1.1rem;
-            margin: 15px 0;
-            height: 30px;
-            font-weight: 600;
-            color: #00d2d3;
-        }
-
-        .board {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        .cell {
-            aspect-ratio: 1;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 12px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 2.5rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        .cell:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-
-        .cell.x { color: #ff4b5c; }
-        .cell.o { color: #00d2d3; }
-
-        .reset-btn {
-            width: 100%;
-            padding: 12px;
-            background: #ff4b5c;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-    </style>
-
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-</head>
-<body>
-
-<div class="container">
-    <h1>Online Tic-Tac-Toe</h1>
-    
-    <div class="share-box" id="share-area">
-        <p>Aapka Game Link Ban Raha Hai...</p>
-    </div>
-
-    <div class="status" id="status">Connecting...</div>
-
-    <div class="board" id="board">
-        <div class="cell" onclick="makeMove(0)"></div>
-        <div class="cell" onclick="makeMove(1)"></div>
-        <div class="cell" onclick="makeMove(2)"></div>
-        <div class="cell" onclick="makeMove(3)"></div>
-        <div class="cell" onclick="makeMove(4)"></div>
-        <div class="cell" onclick="makeMove(5)"></div>
-        <div class="cell" onclick="makeMove(6)"></div>
-        <div class="cell" onclick="makeMove(7)"></div>
-        <div class="cell" onclick="makeMove(8)"></div>
-    </div>
-
-    <button class="reset-btn" onclick="resetGame()">Restart Game</button>
-</div>
-
-<script>
-    // ⚠️ YAHAN APNA FIREBASE CONFIGURATION PASTE KAREIN
-    const firebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_PROJECT.firebaseapp.com",
-        databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-        projectId: "YOUR_PROJECT",
-        storageBucket: "YOUR_PROJECT.appspot.com",
-        messagingSenderId: "YOUR_SENDER_ID",
-        appId: "YOUR_APP_ID"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    // URL se Game ID lena ya Nayi Game ID banana
-    const urlParams = new URLSearchParams(window.location.search);
-    let gameId = urlParams.get('game');
-    let mySymbol = "";
-    let gameRef;
-
-    const cells = document.querySelectorAll('.cell');
-    const statusText = document.getElementById('status');
-    const shareArea = document.getElementById('share-area');
-
-    if (!gameId) {
-        // Player 1 (Host)
-        gameId = Math.random().toString(36).substring(2, 8);
-        mySymbol = "X";
-        window.history.pushState({}, '', '?game=' + gameId);
-        gameRef = db.ref('games/' + gameId);
-        
-        gameRef.set({
-            board: ["", "", "", "", "", "", "", "", ""],
-            turn: "X",
-            winner: ""
-        });
-    } else {
-        // Player 2 (Joiner)
-        mySymbol = "O";
-        gameRef = db.ref('games/' + gameId);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e")),
+        );
+      }
     }
+  }
 
-    // Shareable Link Display
-    const fullLink = window.location.href;
-    shareArea.innerHTML = `
-        <p>Aap <b>Player (${mySymbol})</b> hain.</p>
-        <p style="margin-top:5px; font-size:0.75rem;">Dost ko link bhejein:</p>
-        <button class="btn" onclick="navigator.clipboard.writeText('${fullLink}'); alert('Link copied!');">📋 Copy Game Link</button>
-    `;
+  // Payment Bottom Sheet Screen jisme "Papa" name show hoga
+  void _showPaymentDialog() {
+    final TextEditingController amountController = TextEditingController(text: "5499");
 
-    // Database Sync Listeners
-    gameRef.on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (!data) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF011C11),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                top: 20,
+                left: 20,
+                right: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Payment Modal Header with Name "Papa"
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircleAvatar(
+                        radius: 16,
+                        child: Icon(Icons.person, size: 18),
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        "Account: Papa",
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amber),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 15),
 
-        // Board UI Update
-        data.board.forEach((val, idx) => {
-            cells[idx].innerText = val;
-            cells[idx].className = 'cell ' + val.toLowerCase();
-        });
+                  // UPI ID Display & Copy Box
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white10,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.amber.shade700),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Target UPI ID", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            Text("8057418879@ibl", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.copy, color: Colors.amber),
+                          onPressed: () {
+                            Clipboard.setData(const ClipboardData(text: "8057418879@ibl"));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("UPI ID Copy ho gayi!")),
+                            );
+                          },
+                        )
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 15),
 
-        // Status Message Update
-        if (data.winner) {
-            if (data.winner === "Draw") {
-                statusText.innerText = "Match Draw Ho Gaya! 🤝";
-            } else {
-                statusText.innerText = `Khiladi ${data.winner} Jeet Gaya! 🎉`;
-            }
-        } else {
-            if (data.turn === mySymbol) {
-                statusText.innerText = "Aapki Baari Hai! (" + mySymbol + ")";
-            } else {
-                statusText.innerText = "Dost ki baari ka wait karein... (" + data.turn + ")";
-            }
-        }
-    });
+                  // Amount Input (Auto 5499)
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      labelText: "Amount (₹)",
+                      labelStyle: const TextStyle(color: Colors.amber),
+                      prefixIcon: const Icon(Icons.currency_rupee, color: Colors.amber),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: const BorderSide(color: Colors.white30),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: const BorderSide(color: Colors.amber),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
 
-    function makeMove(index) {
-        gameRef.once('value').then((snapshot) => {
-            const data = snapshot.val();
-            if (!data || data.winner !== "") return;
-            if (data.turn !== mySymbol) return; // Baari nahi hai
-            if (data.board[index] !== "") return; // Jagah bhari hui hai
+                  // Pay Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () {
+                        double amount = double.tryParse(amountController.text) ?? 5499;
+                        Navigator.pop(context);
+                        _payViaUPI(amount);
+                      },
+                      child: const Text(
+                        "AUTO PAY ₹5499 (OPEN PHONEPE / UPI)",
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
-            let newBoard = [...data.board];
-            newBoard[index] = mySymbol;
+  // App / APK Share Function (₹5999 Bonus Feature)
+  void _shareAppAndEarn() {
+    Share.share(
+      "🔥 Har invite par paayein ₹5999 ka massive bonus! Abhi hamara gaming app download karein aur khelein: https://example.com/download-app-release.apk",
+      subject: "Earn ₹5999 Rewards!",
+    );
+  }
 
-            let winner = checkWinner(newBoard);
-            let nextTurn = mySymbol === "X" ? "O" : "X";
+  @override
+  Widget build(BuildContext context) {
+    // Screen switcher for Bottom Navigation
+    final List<Widget> pages = [
+      // Index 0: Bank / Pay Screen view
+      Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.account_balance_wallet, size: 60, color: Colors.amber),
+            const SizedBox(height: 10),
+            const Text("Papa's Wallet & Deposit", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
+              onPressed: _showPaymentDialog,
+              child: const Text("Deposit ₹5499 Now", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+      // Index 1: Game Dashboard
+      SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(10.0),
+          child: Column(
+            children: [
+              // Jackpot Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade900,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Column(
+                  children: [
+                    Text("JACKPOT LOTTO", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                    SizedBox(height: 5),
+                    Text("₹1,251,707", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.yellow)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 15),
+              // Game Grid
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                children: [
+                  _buildGameCard("Uno Aviator", Colors.redAccent),
+                  _buildGameCard("Chicken Road", Colors.orangeAccent),
+                  _buildGameCard("Boxing King", Colors.blueAccent),
+                  _buildGameCard("Wild Ace", Colors.purpleAccent),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      // Index 2: Lucky Wheel
+      const Center(child: Text("Lucky Wheel Feature", style: TextStyle(fontSize: 22, color: Colors.amber))),
+      // Index 3: Refer & Earn (₹5999 per share option)
+      Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.card_giftcard, size: 80, color: Colors.amber),
+              const SizedBox(height: 15),
+              const Text(
+                "Invite Friends & Earn ₹5999",
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                "Apne dosto ko APK share karein aur har successful join/deposit par turant ₹5999 ka cash bonus paayein!",
+                style: TextStyle(fontSize: 14, color: Colors.white70),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 25),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: _shareAppAndEarn,
+                  icon: const Icon(Icons.share, color: Colors.black),
+                  label: const Text(
+                    "SHARE APK & EARN ₹5999",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      // Index 4: Events
+      const Center(child: Text("Special Events & Offers", style: TextStyle(fontSize: 22, color: Colors.amber))),
+    ];
 
-            gameRef.update({
-                board: newBoard,
-                turn: nextTurn,
-                winner: winner
-            });
-        });
-    }
+    return Scaffold(
+      backgroundColor: const Color(0xFF032B1A),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF011C11),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Profile with Name "Papa"
+            const Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  child: Icon(Icons.person, size: 20),
+                ),
+                SizedBox(width: 8),
+                Text(
+                  "Papa",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+              ],
+            ),
+            // Wallet Balance + Pay Button
+            GestureDetector(
+              onTap: _showPaymentDialog,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black45,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.amber),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.monetization_on, color: Colors.amber, size: 18),
+                    const SizedBox(width: 5),
+                    const Text("₹ 0.40", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text("PAY 5499", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Icon(Icons.settings),
+          ],
+        ),
+      ),
+      body: pages[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.amber,
+        unselectedItemColor: Colors.white60,
+        backgroundColor: const Color(0xFF011C11),
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: 'Bank / Pay'),
+          BottomNavigationBarItem(icon: Icon(Icons.sports_esports), label: 'Game'),
+          BottomNavigationBarItem(icon: Icon(Icons.wheelchair_pickup), label: 'Lucky Wheel'),
+          BottomNavigationBarItem(icon: Icon(Icons.share), label: 'Refer & Earn'),
+          BottomNavigationBarItem(icon: Icon(Icons.card_giftcard), label: 'Events'),
+        ],
+      ),
+    );
+  }
 
-    function checkWinner(board) {
-        const wins = [
-            [0,1,2],[3,4,5],[6,7,8],
-            [0,3,6],[1,4,7],[2,5,8],
-            [0,4,8],[2,4,6]
-        ];
+  Widget _buildGameCard(String title, Color color) {
+    return Container(
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: Text(
+          title,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
 
-        for (let condition of wins) {
-            const [a, b, c] = condition;
-            if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-                return board[a];
-            }
-        }
-
-        if (board.every(cell => cell !== "")) return "Draw";
-        return "";
-    }
-
-    function resetGame() {
-        gameRef.update({
-            board: ["", "", "", "", "", "", "", "", ""],
-            turn: "X",
-            winner: ""
-        });
-    }
-</script>
-
-</body>
-</html>
